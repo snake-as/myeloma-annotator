@@ -26,17 +26,22 @@ def annotate_gene(gene_symbol):
     try:
         dgidb_url = f"https://dgidb.org/api/v2/interactions.json?genes={gene_symbol}"
         r2_raw = requests.get(dgidb_url)
-        if r2_raw.status_code == 200:
-            r2 = r2_raw.json()
-            drugs = r2.get('matchedTerms', [])
-            if drugs and 'interactions' in drugs[0]:
-                result["Drugs"] = ', '.join([i["drugName"] for i in drugs[0]["interactions"]])
-            else:
-                result["Drugs"] = "None found"
+
+        # Ensure the response is valid JSON
+        if r2_raw.status_code == 200 and "application/json" in r2_raw.headers.get("Content-Type", ""):
+            try:
+                r2 = r2_raw.json()
+                drugs = r2.get('matchedTerms', [])
+                if drugs and 'interactions' in drugs[0]:
+                    result["Drugs"] = ', '.join([i["drugName"] for i in drugs[0]["interactions"]])
+                else:
+                    result["Drugs"] = "None found"
+            except Exception as e:
+                result["Drugs"] = f"DGIdb JSON error: {str(e)}"
         else:
-            result["Drugs"] = f"API error ({r2_raw.status_code})"
+            result["Drugs"] = f"DGIdb bad response ({r2_raw.status_code})"
     except Exception as e:
-        result["Drugs"] = f"Error: {str(e)}"
+        result["Drugs"] = f"DGIdb error: {str(e)}"
 
     # --- Myeloma marker detection ---
     myeloma_markers = [
