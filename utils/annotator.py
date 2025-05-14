@@ -3,7 +3,7 @@ import requests
 def annotate_gene(gene_symbol):
     result = {"Gene": gene_symbol}
 
-    # MyGene.info
+    # --- Fetch gene info from MyGene.info ---
     mygene_url = f"https://mygene.info/v3/query?q={gene_symbol}&species=human"
     try:
         r = requests.get(mygene_url)
@@ -22,7 +22,7 @@ def annotate_gene(gene_symbol):
     except Exception as e:
         result["Name"] = result["Summary"] = f"MyGene error: {str(e)}"
 
-    # Safe DGIdb lookup
+    # --- Fetch drug interactions from DGIdb ---
     try:
         dgidb_url = f"https://dgidb.org/api/v2/interactions.json?genes={gene_symbol}"
         r2_raw = requests.get(dgidb_url)
@@ -38,7 +38,11 @@ def annotate_gene(gene_symbol):
     except Exception as e:
         result["Drugs"] = f"Error: {str(e)}"
 
-    myeloma_markers = ["CCND1", "FGFR3", "MMSET", "TP53", "BCL2", "MYC", "NRAS", "KRAS", "IKZF1", "IKZF3", "IRF4", "XBP1"]
+    # --- Myeloma marker detection ---
+    myeloma_markers = [
+        "CCND1", "FGFR3", "MMSET", "TP53", "BCL2", "MYC", "NRAS",
+        "KRAS", "IKZF1", "IKZF3", "IRF4", "XBP1"
+    ]
     result["Myeloma Marker"] = "✅" if gene_symbol.upper() in myeloma_markers else ""
 
     return result
