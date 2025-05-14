@@ -18,8 +18,20 @@ def annotate_gene(gene_symbol):
 
     # Check drug interactions from DGIdb
     dgidb_url = f"https://dgidb.org/api/v2/interactions.json?genes={gene_symbol}"
-    r2 = requests.get(dgidb_url).json()
-    drugs = r2.get('matchedTerms', [])
+    try:
+    r2_raw = requests.get(dgidb_url)
+    if r2_raw.status_code == 200:
+        r2 = r2_raw.json()
+        drugs = r2.get('matchedTerms', [])
+        if drugs and 'interactions' in drugs[0]:
+            result["Drugs"] = ', '.join([i["drugName"] for i in drugs[0]["interactions"]])
+        else:
+            result["Drugs"] = "None found"
+    else:
+        result["Drugs"] = f"API error ({r2_raw.status_code})"
+except Exception as e:
+    result["Drugs"] = f"Error: {str(e)}"
+
     if drugs and 'interactions' in drugs[0]:
         result["Drugs"] = ', '.join([i["drugName"] for i in drugs[0]["interactions"]])
     else:
