@@ -22,17 +22,12 @@ if uploaded_file:
             st.subheader("Annotated Results")
             st.dataframe(result_df)
             with st.expander("🧠 How to interpret the results"):
-    st.markdown("""
-    - **Gene**: The gene symbol you uploaded (e.g., `TP53`, `MYC`).
-    - **Name**: Official gene name from MyGene.info.
-    - **Summary**: Biological description of the gene's function.
-    - **Entrez ID / Ensembl ID**: Gene database identifiers (useful for reference or further lookup).
-    - **Drugs**: Drugs or compounds that are known to interact with this gene, sourced from DGIdb.
-    - **Myeloma Marker**: ✅ indicates the gene is commonly associated with Multiple Myeloma based on literature.
-
-    > 💡 Use this output to identify key genes, prioritize targets, and link findings to therapeutic strategies.
-    """)
-
+            st.markdown("""
+            - **Gene**: The gene symbol you uploaded (e.g., `TP53`, `MYC`).
+            - **Name**: Official gene name from MyGene.info.
+            - **Summary**: Biological description of the gene's function.
+            - **Entrez ID / Ensembl ID**: Gene database identifiers (useful for reference or further lookup).
+            - **Drugs**: Drug
 
             csv = result_df.to_csv(index=False).encode("utf-8")
             st.download_button(
