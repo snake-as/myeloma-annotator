@@ -43,7 +43,7 @@ This tool offers a **concise, interpreted report** for each gene — saving you 
 Make sure you have Python 3.9+ installed.
 
 ```bash
-git clone https://github.com/your-username/myeloma-annotator.git
+git clone https://github.com/snake-as/myeloma-annotator.git
 cd myeloma-annotator
 pip install -r requirements.txt
 streamlit run app.py
