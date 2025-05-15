@@ -3,72 +3,69 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from utils.annotator import annotate_genes
+import time
 
 st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
 
-st.title("🧬 Myeloma Gene Annotator")
+# Sidebar information
+with st.sidebar:
+    st.title("🧬 Gene Annotator")
+    st.markdown("""
+    Welcome to the **Myeloma Gene Annotator**!
 
-uploaded_file = st.file_uploader("Upload a CSV file with gene symbols", type=["csv"])
+    👉 Upload a `.csv` file with a column of gene names.  
+    👉 View annotations from:
+    - Enrichr (pathways, ontologies)
+    - DrugBank, DGIdb (targets)
+    - GeneCards, COSMIC (info)
+
+    ⚠️ Empty or invalid gene entries will be skipped.
+
+    ---
+    [GitHub Repo](https://github.com/yourrepo)  
+    Made with ❤️ using Streamlit
+    """)
+
+st.title("📊 Drug Target Overview")
+uploaded_file = st.file_uploader("Upload a CSV file with gene names", type=["csv"])
 
 if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file)
-        st.write("### 📄 Preview of Uploaded File")
-        st.dataframe(df.head())
+        gene_column = df.columns[0]
+        genes = df[gene_column].dropna().astype(str).str.strip().unique().tolist()
 
-        # Ensure 'Gene' column exists
-        if 'Gene' not in df.columns:
-            st.error("The uploaded CSV must contain a 'Gene' column.")
+        if not genes:
+            st.warning("No valid genes found in the uploaded file.")
         else:
-            gene_list = df['Gene'].dropna().unique().tolist()
-
-            st.info(f"Found {len(gene_list)} unique gene(s) for annotation.")
-
             with st.spinner("🔍 Annotating genes, please wait..."):
-                try:
-                    annotated_df, drug_df, errors = annotate_genes(gene_list)
+                results = annotate_genes(genes)
+                time.sleep(1)  # simulate delay
 
-                    st.success("✅ Annotation completed!")
+            st.success("✅ Annotation complete!")
+            st.subheader("Annotation Summary")
 
-                    # Display annotations
-                    st.write("### 🧬 Gene Annotations")
-                    st.dataframe(annotated_df)
-
-                    # Display drug information
-                    st.write("### 💊 Drug Target Overview")
-                    if drug_df is not None and not drug_df.empty:
-                        st.dataframe(drug_df)
-                    else:
-                        st.warning("No drug target data was found for the submitted genes.")
-
-                    # Download buttons
-                    st.download_button(
-                        label="📥 Download Gene Annotations",
-                        data=annotated_df.to_csv(index=False),
-                        file_name="gene_annotations.csv",
-                        mime="text/csv",
-                    )
-                    if drug_df is not None and not drug_df.empty:
-                        st.download_button(
-                            label="📥 Download Drug Data",
-                            data=drug_df.to_csv(index=False),
-                            file_name="drug_targets.csv",
-                            mime="text/csv",
-                        )
-
-                    # Display error summary if any
-                    if errors:
-                        st.write("### ❗ Error Summary")
-                        for err in errors:
-                            st.error(err)
-
-                        with st.expander("🔍 Show Debug Details"):
-                            st.code("\n".join(errors))
-
-                except Exception as e:
-                    st.error(f"Error during annotation: {e}")
+            for section, table in results.items():
+                if table.empty:
+                    st.warning(f"No data found for section: {section}")
+                    continue
+                st.markdown(f"### {section}")
+                st.dataframe(table)
 
     except Exception as e:
-        st.error(f"Could not process file: {e}")
+        st.error("❌ Error processing file: " + str(e))
+        st.markdown("""
+        ### What went wrong?
+        This error might occur due to:
+        - Missing or incorrectly named gene column
+        - Empty rows or invalid characters
+        - Incompatible file format
+
+        ✅ Please ensure:
+        - The file is a valid `.csv`
+        - The first column contains gene names
+        - No completely empty rows or duplicate header rows exist
+        """)
+
 else:
-    st.info("Please upload a .csv file containing a column named 'Gene'.")
+    st.info("👈 Please upload a gene list to begin.")
