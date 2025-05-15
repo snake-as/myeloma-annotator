@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from annotator import annotate_genes
+from utils.annotator import annotate_genes
 
 st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
 
