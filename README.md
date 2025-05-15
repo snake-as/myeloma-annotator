@@ -63,7 +63,13 @@ Edit
 🙌 Credits
 Developed by Feidias — Biomedical Data Science & AI in Medicine
 
-Powered by Streamlit, DrugBank, and open-source data
 
-📄 License
-MIT License — feel free to use and build on this.
+# 🧬 Gene Annotator Web App
+
+A user-friendly web app for gene annotation and enrichment analysis — designed for **researchers, clinicians, and students**. Upload a list of human genes in `.csv` format and receive biological context, enrichment pathways, and functional annotations — all in a few clicks.
+
+[![Try it now](https://img.shields.io/badge/🚀-Try%20it%20now-brightgreen?style=for-the-badge)](https://your-app-link.streamlit.app/)  
+<sub>Replace the link above with your actual Streamlit URL after deployment</sub>
+
+---
+
