@@ -7,82 +7,68 @@ from utils.annotator import annotate_genes
 st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
 
 st.title("🧬 Myeloma Gene Annotator")
-st.markdown("Upload a list of genes to receive functional and drug annotation.")
 
-# Sidebar instructions and explanation
-with st.sidebar:
-    st.header("📖 How to Use")
-    st.markdown("""
-    1. Upload a CSV, TXT, or Excel file with a column labeled `gene` (case-insensitive).
-    2. The app will annotate the genes with known drug targets and biological info.
-    3. Download the results or explore the visualizations.
-
-    **Example Format:**
-    ```
-    gene
-    TP53
-    KRAS
-    NRAS
-    ```
-    """)
-
-    with st.expander("🧠 How to Interpret Results"):
-        st.markdown("""
-        - **Gene Info:** Includes known aliases and functions from public databases.
-        - **Drug Targets:** Lists drugs known to interact with or target the gene.
-        - **Missing Data:** `N/A` means no known info was found for that gene.
-        - **Why Some Genes Have No Drugs:** Not all genes are druggable.
-        - **Data Sources:** DrugBank, EnrichR, and more.
-        """)
-
-# Upload section
-uploaded_file = st.file_uploader("📁 Upload gene list", type=["csv", "txt", "xlsx"])
+uploaded_file = st.file_uploader("Upload a CSV file with gene symbols", type=["csv"])
 
 if uploaded_file is not None:
     try:
-        if uploaded_file.name.endswith(".xlsx"):
-            input_df = pd.read_excel(uploaded_file)
-        elif uploaded_file.name.endswith(".txt"):
-            input_df = pd.read_csv(uploaded_file, sep="\t")
+        df = pd.read_csv(uploaded_file)
+        st.write("### 📄 Preview of Uploaded File")
+        st.dataframe(df.head())
+
+        # Ensure 'Gene' column exists
+        if 'Gene' not in df.columns:
+            st.error("The uploaded CSV must contain a 'Gene' column.")
         else:
-            input_df = pd.read_csv(uploaded_file)
+            gene_list = df['Gene'].dropna().unique().tolist()
 
-        gene_col = [col for col in input_df.columns if col.lower() == 'gene']
-        if not gene_col:
-            st.error("The uploaded file must contain a column named 'gene'.")
-        else:
-            input_df = input_df.rename(columns={gene_col[0]: 'gene'})
+            st.info(f"Found {len(gene_list)} unique gene(s) for annotation.")
 
-            with st.spinner("🔍 Annotating genes..."):
-                result_df = annotate_genes(input_df['gene'].tolist())
+            with st.spinner("🔍 Annotating genes, please wait..."):
+                try:
+                    annotated_df, drug_df, errors = annotate_genes(gene_list)
 
-            st.success("✅ Annotation complete!")
+                    st.success("✅ Annotation completed!")
 
-            st.subheader("📋 Annotated Results")
-            st.dataframe(result_df, use_container_width=True)
+                    # Display annotations
+                    st.write("### 🧬 Gene Annotations")
+                    st.dataframe(annotated_df)
 
-            # Visualization section
-            st.subheader("📊 Drug Target Overview")
-            drug_counts = result_df['drugs'].value_counts().drop(labels=['N/A'], errors='ignore')
-            if not drug_counts.empty:
-                fig, ax = plt.subplots()
-                sns.barplot(y=drug_counts.index, x=drug_counts.values, ax=ax)
-                ax.set_xlabel("# of Genes")
-                ax.set_ylabel("Drug")
-                st.pyplot(fig)
-            else:
-                st.info("No drug annotations available for visualization.")
+                    # Display drug information
+                    st.write("### 💊 Drug Target Overview")
+                    if drug_df is not None and not drug_df.empty:
+                        st.dataframe(drug_df)
+                    else:
+                        st.warning("No drug target data was found for the submitted genes.")
 
-            # Download option
-            csv = result_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Annotated CSV",
-                data=csv,
-                file_name='annotated_genes.csv',
-                mime='text/csv',
-            )
+                    # Download buttons
+                    st.download_button(
+                        label="📥 Download Gene Annotations",
+                        data=annotated_df.to_csv(index=False),
+                        file_name="gene_annotations.csv",
+                        mime="text/csv",
+                    )
+                    if drug_df is not None and not drug_df.empty:
+                        st.download_button(
+                            label="📥 Download Drug Data",
+                            data=drug_df.to_csv(index=False),
+                            file_name="drug_targets.csv",
+                            mime="text/csv",
+                        )
+
+                    # Display error summary if any
+                    if errors:
+                        st.write("### ❗ Error Summary")
+                        for err in errors:
+                            st.error(err)
+
+                        with st.expander("🔍 Show Debug Details"):
+                            st.code("\n".join(errors))
+
+                except Exception as e:
+                    st.error(f"Error during annotation: {e}")
 
     except Exception as e:
-        st.error(f"❌ Error processing file: {e}")
+        st.error(f"Could not process file: {e}")
 else:
-    st.info("Please upload a file with a column of gene names.")
+    st.info("Please upload a .csv file containing a column named 'Gene'.")
