@@ -13,8 +13,8 @@ with st.sidebar:
     st.markdown("""
     Welcome to the **Myeloma Gene Annotator**!
 
-    👉 Upload a `.csv` file with a column of gene names.  
-    👉 View annotations from:
+    -> Upload a `.csv` file with a column of gene names.  
+    -> View annotations from:
     - Enrichr (pathways, ontologies)
     - DrugBank, DGIdb (targets)
     - GeneCards, COSMIC (info)
@@ -68,4 +68,4 @@ if uploaded_file is not None:
         """)
 
 else:
-    st.info("👈 Please upload a gene list to begin.")
+    st.info(" Please upload a gene list to begin.")
