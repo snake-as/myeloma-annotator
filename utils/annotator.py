@@ -1,41 +1,66 @@
-import pandas as pd
 import requests
-from typing import List
+import pandas as pd
+from typing import List, Dict
 
-def annotate_genes_real_api(genes: List[str]) -> pd.DataFrame:
+# Static fallback map (expandable)
+STATIC_DRUG_MAP: Dict[str, List[str]] = {
+    "TP53": ["Nutlin-3"],
+    "KRAS": ["AMG-510"],
+    "MYC": ["10058-F4"],
+    "BRAF": ["Vemurafenib"],
+    "EGFR": ["Gefitinib", "Erlotinib"],
+}
+
+def fetch_drug_targets_dgidb(gene: str) -> List[str]:
     """
-    Query DGIdb API for drug-gene interactions and return a DataFrame
-    with columns: Gene and Drug Targets.
+    Query DGIdb API for drug interactions of a gene.
     """
-    base_url = "https://dgidb.org/api/v2/interactions.json"
-    annotated_data = []
-
-    # DGIdb allows multiple genes in one query (comma-separated)
-    genes_str = ",".join(genes)
-
+    url = f"https://dgidb.org/api/v2/interactions.json?genes={gene}"
     try:
-        response = requests.get(base_url, params={"genes": genes_str}, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        res = requests.get(url, timeout=10)
+        res.raise_for_status()
+        data = res.json()
 
-        # Build a dict: gene -> list of drugs
-        gene_to_drugs = {}
+        matched_terms = data.get("matchedTerms", [])
+        if not matched_terms:
+            return []
 
-        for match in data.get("matchedTerms", []):
-            gene_name = match.get("geneName", "")
-            interactions = match.get("interactions", [])
-            drugs = list({interaction.get("drugName") for interaction in interactions if interaction.get("drugName")})
-            gene_to_drugs[gene_name] = drugs
+        interactions = matched_terms[0].get("interactions", [])
+        return sorted(set(
+            i.get("drugName") for i in interactions if i.get("drugName")
+        ))
+    except requests.RequestException as e:
+        print(f"⚠️ API error for {gene}: {e}")
+        return []
 
-        for gene in genes:
-            drugs = gene_to_drugs.get(gene, [])
-            annotated_data.append({
-                "Gene": gene,
-                "Drug Targets": ", ".join(drugs) if drugs else "None found"
-            })
+def get_combined_drug_targets(gene: str) -> List[str]:
+    """
+    Combine API results with static map for fallback support.
+    """
+    api_targets = fetch_drug_targets_dgidb(gene)
+    static_targets = STATIC_DRUG_MAP.get(gene.upper(), [])
+    combined = set(api_targets).union(static_targets)
+    return sorted(combined)
 
-    except requests.RequestException:
-        # If API call fails, mark all as error
-        annotated_data = [{"Gene": gene, "Drug Targets": "Error fetching data"} for gene in genes]
+def annotate_genes(gene_list: List[str]) -> pd.DataFrame:
+    """
+    Annotate gene list with drug target info.
+    Returns a dataframe with columns: Gene, DrugTargets, NumTargets, Source
+    """
+    records = []
 
-    return pd.DataFrame(annotated_data)
+    for gene in gene_list:
+        gene = gene.strip().upper()
+        drugs = get_combined_drug_targets(gene)
+
+        record = {
+            "Gene": gene,
+            "DrugTargets": ", ".join(drugs) if drugs else "None",
+            "NumTargets": len(drugs),
+            "Status": "Annotated" if drugs else "Not Annotated",
+        }
+        records.append(record)
+
+    df = pd.DataFrame(records)
+    df.sort_values(by="NumTargets", ascending=False, inplace=True)
+    return df
