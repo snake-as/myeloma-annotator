@@ -1,8 +1,8 @@
 import pandas as pd
 from gseapy import enrichr
-from typing import List
+from typing import List, Dict
 
-# Enrichr databases to use
+# List of enrichment libraries
 enrichr_libraries = [
     "KEGG_2021_Human",
     "WikiPathway_2021_Human",
@@ -12,12 +12,9 @@ enrichr_libraries = [
 ]
 
 def clean_gene_list(genes: List[str]) -> List[str]:
-    """Remove empty, NaN, duplicates and strip whitespace."""
-    cleaned = list({g.strip() for g in genes if isinstance(g, str) and g.strip()})
-    return cleaned
+    return list({g.strip() for g in genes if isinstance(g, str) and g.strip()})
 
 def fetch_drug_targets(gene: str) -> List[str]:
-    """Mock: fetch drug targets for gene (replace with real DB query)."""
     drug_map = {
         "TP53": ["Nutlin-3"],
         "KRAS": ["AMG-510"],
@@ -26,32 +23,25 @@ def fetch_drug_targets(gene: str) -> List[str]:
     return drug_map.get(gene.upper(), [])
 
 def annotate_genes(genes: List[str]) -> pd.DataFrame:
-    """Annotate genes with drug targets and return a DataFrame."""
     genes = clean_gene_list(genes)
-    results = []
+    records = []
+
     for gene in genes:
         try:
-            drugs = fetch_drug_targets(gene)
-            results.append({
-                "gene": gene,
-                "drugs": ", ".join(drugs) if drugs else ""
-            })
+            record = {
+                "Gene": gene,
+                "Drugs": ", ".join(fetch_drug_targets(gene))
+            }
+            records.append(record)
         except Exception as e:
-            results.append({
-                "gene": gene,
-                "drugs": "",
-                "error": str(e)
-            })
+            records.append({"Gene": gene, "Drugs": "", "Error": str(e)})
 
-    df = pd.DataFrame(results)
-    return df
+    return pd.DataFrame(records)
 
 def run_enrichment(genes: List[str]) -> pd.DataFrame:
-    """Run enrichment analysis using Enrichr."""
     genes = clean_gene_list(genes)
     if not genes:
         return pd.DataFrame()
+
     enr = enrichr(gene_list=genes, description='gene_enrichment', gene_sets=enrichr_libraries)
-    if enr.results is not None:
-        return enr.results
-    return pd.DataFrame()
+    return enr.results if enr.results is not None else pd.DataFrame()
