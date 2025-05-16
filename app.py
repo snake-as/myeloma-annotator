@@ -1,80 +1,90 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from utils.annotator import annotate_genes
 
-st.set_page_config(page_title="Drug Target Overview", layout="wide")
+st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
 
 st.title("🧬 Drug Target Overview")
 st.markdown("This app annotates a list of genes with enrichment data and drug target information.")
 
-# Sidebar upload
 with st.sidebar:
-    st.header("📂 Upload a CSV file")
-    uploaded_file = st.file_uploader("Drag and drop file here", type=["csv"], help="Limit 50MB per file • CSV")
+    uploaded_file = st.file_uploader("📁 Upload a CSV file", type=["csv"])
+    st.markdown("---")
+    st.markdown("""
+    ### How to use:
+    1. Upload a CSV file.
+    2. Choose the gene column.
+    3. View annotations and download results.
+    """)
 
-    if uploaded_file:
-        st.success("✅ File loaded successfully")
-
-    gene_column = None
-    df = None
-
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.markdown("### 🔬 Select the gene column to annotate")
-        gene_column = st.selectbox("Select the gene column to annotate", df.columns)
-
-# Show preview of uploaded data
-if uploaded_file and gene_column:
-    st.subheader("📄 Uploaded Data (Preview)")
-    st.dataframe(df.head(10))
-
+if uploaded_file:
     try:
-        with st.spinner("🔎 Annotating genes..."):
-            annotated_df = annotate_genes(df, gene_column)
-            st.success("✅ Annotation completed!")
+        df = pd.read_csv(uploaded_file)
+        st.success("✅ File loaded successfully")
+        st.subheader("📄 Uploaded Data (Preview)")
+        st.dataframe(df.head(10))
 
-            # Merge with original dataframe
-            merged_df = pd.concat([df, annotated_df], axis=1)
-            st.subheader("🧪 Annotated Data (Preview)")
-            st.dataframe(merged_df.head(10))
+        gene_columns = [col for col in df.columns if df[col].dtype == object and df[col].str.match(r'^[A-Za-z0-9-_]+$').sum() > 0]
 
-            # Show genes with actual annotations
-            annotated_only = merged_df[merged_df["Drug Targets"].notna() & (merged_df["Drug Targets"] != "None found")]
+        if not gene_columns:
+            st.error("⚠️ No suitable gene columns found.")
+        else:
+            gene_column = st.sidebar.selectbox("🧬 Select gene column", gene_columns)
 
-            if not annotated_only.empty:
-                st.subheader("🔍 Annotated Genes with Targets Found")
-                st.dataframe(annotated_only)
+            if gene_column:
+                genes = df[gene_column].dropna().unique().tolist()
 
-                # Plot top genes
-                st.subheader("📈 Top Genes by Number of Drug Interactions")
-                annotated_only["Num Targets"] = annotated_only["Drug Targets"].apply(lambda x: len(x.split(", ")) if isinstance(x, str) and x != "None found" else 0)
-                top_genes = annotated_only.sort_values("Num Targets", ascending=False).head(10)
+                if len(genes) == 0:
+                    st.warning("⚠️ Column is empty.")
+                else:
+                    with st.spinner("🔎 Annotating genes..."):
+                        try:
+                            annotation_df = annotate_genes(genes)
 
-                fig, ax = plt.subplots()
-                ax.barh(top_genes[gene_column], top_genes["Num Targets"], color="#00c0ff")
-                ax.invert_yaxis()
-                ax.set_xlabel("Number of Drug Targets")
-                ax.set_ylabel("Gene Symbol")
-                st.pyplot(fig)
+                            if isinstance(annotation_df, pd.DataFrame):
+                                st.success("✅ Annotation completed!")
+                                merged_df = df.merge(annotation_df, left_on=gene_column, right_on="Gene", how="left")
+                                
+                                st.subheader("🔬 Annotated Data Preview")
+                                st.dataframe(merged_df.head(10))
 
-                # Search feature
-                st.subheader("🔎 Search for a gene to view its annotations")
-                search_gene = st.text_input("Enter a gene symbol:")
-                if search_gene:
-                    found = annotated_only[annotated_only[gene_column].str.upper() == search_gene.upper()]
-                    if not found.empty:
-                        st.success(f"**Drug Targets for {search_gene.upper()}**: {found['Drug Targets'].values[0]}")
-                    else:
-                        st.warning(f"No annotated targets found for {search_gene.upper()}")
+                                st.download_button("💾 Download Annotated CSV", merged_df.to_csv(index=False).encode('utf-8'), "annotated_genes.csv", "text/csv")
 
-            else:
-                st.info("ℹ️ No drug targets found in the uploaded genes.")
+                                st.markdown("---")
+                                st.subheader("📊 Annotation Summary")
+                                annotated = annotation_df[annotation_df['NumTargets'] > 0]
+                                not_annotated = annotation_df[annotation_df['NumTargets'] == 0]
 
-            # Download button
-            csv = merged_df.to_csv(index=False)
-            st.download_button("📥 Download Annotated Data as CSV", csv, "annotated_genes.csv", "text/csv")
+                                fig, ax = plt.subplots()
+                                sns.barplot(
+                                    x=["Annotated", "Not Annotated"],
+                                    y=[len(annotated), len(not_annotated)],
+                                    palette="muted",
+                                    ax=ax
+                                )
+                                ax.set_ylabel("Number of Genes")
+                                st.pyplot(fig)
+
+                                st.markdown("### 🔎 Example Drug Targets")
+                                st.dataframe(annotated.head(10))
+
+                                with st.expander("ℹ️ Notes"):
+                                    st.markdown("""
+                                    - **Real-time data** from DGIdb.
+                                    - Only genes found in the drug interaction database will be annotated.
+                                    - Drugs shown may be experimental or FDA-approved.
+                                    """)
+
+                            else:
+                                st.error("❌ Annotation did not return a DataFrame.")
+
+                        except Exception as e:
+                            st.error(f"❌ Error during annotation: {e}")
 
     except Exception as e:
-        st.error(f"❌ Error during annotation: {e}")
+        st.error(f"❌ Error reading file: {e}")
+
+else:
+    st.info("⬅️ Upload a CSV to begin.")
