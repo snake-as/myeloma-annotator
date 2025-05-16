@@ -1,9 +1,8 @@
-import requests
 import pandas as pd
 from gseapy import enrichr
-from typing import List, Dict
+from typing import List
 
-# List of known cancer-related databases to use with Enrichr
+# Enrichr databases to use
 enrichr_libraries = [
     "KEGG_2021_Human",
     "WikiPathway_2021_Human",
@@ -13,19 +12,12 @@ enrichr_libraries = [
 ]
 
 def clean_gene_list(genes: List[str]) -> List[str]:
-    """
-    Remove empty strings, NaNs, and duplicates from gene list.
-    """
+    """Remove empty, NaN, duplicates and strip whitespace."""
     cleaned = list({g.strip() for g in genes if isinstance(g, str) and g.strip()})
     return cleaned
 
 def fetch_drug_targets(gene: str) -> List[str]:
-    """
-    Mock function or example for fetching drug targets for a gene.
-    This would typically query a drug-gene interaction database (e.g., DGIdb, DrugBank).
-    For now, it returns dummy values or empty list.
-    """
-    # Example static mock result
+    """Mock: fetch drug targets for gene (replace with real DB query)."""
     drug_map = {
         "TP53": ["Nutlin-3"],
         "KRAS": ["AMG-510"],
@@ -33,30 +25,33 @@ def fetch_drug_targets(gene: str) -> List[str]:
     }
     return drug_map.get(gene.upper(), [])
 
-def annotate_genes(genes: List[str]) -> List[Dict]:
+def annotate_genes(genes: List[str]) -> pd.DataFrame:
+    """Annotate genes with drug targets and return a DataFrame."""
     genes = clean_gene_list(genes)
-    annotations = []
-
+    results = []
     for gene in genes:
         try:
-            result = {
+            drugs = fetch_drug_targets(gene)
+            results.append({
                 "gene": gene,
-                "drugs": fetch_drug_targets(gene)
-            }
-
-            annotations.append(result)
+                "drugs": ", ".join(drugs) if drugs else ""
+            })
         except Exception as e:
-            annotations.append({"gene": gene, "drugs": [], "error": str(e)})
+            results.append({
+                "gene": gene,
+                "drugs": "",
+                "error": str(e)
+            })
 
-    return annotations
+    df = pd.DataFrame(results)
+    return df
 
 def run_enrichment(genes: List[str]) -> pd.DataFrame:
+    """Run enrichment analysis using Enrichr."""
     genes = clean_gene_list(genes)
     if not genes:
         return pd.DataFrame()
-
     enr = enrichr(gene_list=genes, description='gene_enrichment', gene_sets=enrichr_libraries)
     if enr.results is not None:
         return enr.results
-    else:
-        return pd.DataFrame()
+    return pd.DataFrame()
