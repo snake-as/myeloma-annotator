@@ -5,67 +5,58 @@ from utils.annotator import annotate_genes, run_enrichment
 st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
 
 st.title("🧬 Drug Target Overview")
-st.markdown("This app annotates a list of genes with enrichment data and drug target information.")
+st.markdown("Upload a gene list to get drug target annotations and pathway enrichment data.")
 
+# Sidebar - Upload file
 with st.sidebar:
-    uploaded_file = st.file_uploader("📁 Upload a CSV file", type=["csv"])
+    uploaded_file = st.file_uploader("📁 Upload a CSV file with gene names", type=["csv"])
+    st.markdown("Your CSV should contain at least one column of gene names.")
 
+# Main logic
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-        st.success("✅ File loaded successfully")
+        st.success("✅ File loaded successfully!")
 
-        # Detect columns with gene-like strings (exclude numeric columns)
+        # Auto-detect possible gene columns
         gene_columns = [col for col in df.columns if df[col].dtype == object and df[col].str.match(r'^[A-Za-z0-9-_]+$').sum() > 0]
 
         if not gene_columns:
-            st.error("⚠️ No suitable gene columns found in the file.")
+            st.error("⚠️ No valid gene column detected. Please check your file.")
         else:
-            gene_column = st.sidebar.selectbox("🧬 Select the gene column to annotate", gene_columns)
+            # Let user choose gene column
+            gene_column = st.sidebar.selectbox("🧬 Select gene column", gene_columns)
 
             if gene_column:
                 genes = df[gene_column].dropna().unique().tolist()
 
-                if len(genes) == 0:
-                    st.warning("⚠️ The selected column contains only empty or invalid values.")
+                if not genes:
+                    st.warning("⚠️ Selected column is empty or contains invalid values.")
                 else:
-                    with st.spinner("🔎 Annotating genes, please wait..."):
-                        try:
-                            result_df = annotate_genes(genes)
+                    with st.spinner("🔎 Annotating genes..."):
+                        result_df = annotate_genes(genes)
 
-                            if isinstance(result_df, pd.DataFrame) and not result_df.empty:
-                                st.success("✅ Annotation completed!")
-                                st.dataframe(result_df)
+                        if isinstance(result_df, pd.DataFrame) and not result_df.empty:
+                            st.success("✅ Annotation complete!")
+                            st.dataframe(result_df)
 
-                                csv = result_df.to_csv(index=False).encode('utf-8')
-                                st.download_button("💾 Download Annotated CSV", csv, "annotated_genes.csv", "text/csv")
+                            csv = result_df.to_csv(index=False).encode('utf-8')
+                            st.download_button("💾 Download Annotated CSV", csv, "annotated_genes.csv", "text/csv")
 
-                                # Optionally run enrichment and display
-                                if st.checkbox("Run enrichment analysis (Enrichr)"):
-                                    with st.spinner("🧬 Running enrichment analysis..."):
-                                        enrichment_df = run_enrichment(genes)
-                                        if not enrichment_df.empty:
-                                            st.subheader("Enrichment Results")
-                                            st.dataframe(enrichment_df)
-                                        else:
-                                            st.info("ℹ️ No enrichment results found.")
+                            st.markdown("---")
+                            with st.expander("🧠 What to know"):
+                                st.markdown("""
+                                - **Blank entries** are skipped automatically.
+                                - **Unknown genes** will return empty annotations.
+                                - **Drug data** is mock/demo — you can plug in real databases later.
+                                - **Enrichment analysis** support is available via `run_enrichment()`.
+                                """)
 
-                                st.markdown("---")
-                                with st.expander("🧠 Explanation / Notes"):
-                                    st.markdown("""
-                                    - **Missing annotations**: Genes that return no hits may not be included in some enrichment libraries.
-                                    - **Empty cells**: The app automatically skips blank entries.
-                                    - **Malformed genes**: Ensure gene names follow standard naming (e.g., TP53, BRCA1).
-                                    - **Drug info**: Based on known drug target databases from Enrichr.
-                                    """)
-                            else:
-                                st.error("❌ Error during annotation: Output is not a DataFrame or is empty.")
-
-                        except Exception as e:
-                            st.error(f"❌ Error during annotation: {e}")
+                        else:
+                            st.error("❌ Error during annotation: Output is not a DataFrame or is empty.")
 
     except Exception as e:
-        st.error(f"❌ Error processing file: {e}")
+        st.error(f"❌ File processing error: {e}")
 
 else:
-    st.info("⬅️ Upload a gene list in CSV format using the sidebar.")
+    st.info("⬅️ Use the sidebar to upload a gene list.")
