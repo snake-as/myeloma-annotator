@@ -5,56 +5,59 @@ import seaborn as sns
 from utils.annotator import annotate_genes
 
 st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
+
 st.title("🧬 Drug Target Overview")
+st.markdown("This app annotates a list of genes with enrichment data and drug target information.")
 
-uploaded_file = st.file_uploader("Upload a CSV file with gene names", type="csv")
+with st.sidebar:
+    uploaded_file = st.file_uploader("📁 Upload a CSV file", type=["csv"])
 
-if uploaded_file is not None:
+if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
+        st.success("✅ File loaded successfully")
 
-        # Detect potential gene name columns
-        string_columns = df.select_dtypes(include='object').columns.tolist()
-        candidate_columns = [col for col in string_columns if df[col].nunique() > 1 and df[col].str.len().mean() < 20]
+        # Automatically detect gene columns (columns with name-like strings and no numbers)
+        gene_columns = [col for col in df.columns if df[col].dtype == object and df[col].str.match(r'^[A-Za-z0-9-_]+$').sum() > 0]
 
-        if not candidate_columns:
-            st.error("❌ No suitable column found that appears to contain gene names.")
+        if not gene_columns:
+            st.error("⚠️ No suitable gene columns found in the file.")
         else:
-            gene_col = st.selectbox("🔍 Select the column that contains gene names:", candidate_columns)
-            
-            # Clean and validate gene list
-            genes = df[gene_col].dropna().unique().tolist()
-            genes = [g.strip() for g in genes if isinstance(g, str) and g.strip() != ""]
+            gene_column = st.sidebar.selectbox("🧬 Select the gene column to annotate", gene_columns)
 
-            if genes:
-                try:
-                    with st.spinner("🔬 Annotating genes..."):
-                        annotation_df = annotate_genes(genes)
+            if gene_column:
+                genes = df[gene_column].dropna().unique().tolist()
 
-                    st.success("✅ Annotation complete!")
-                    st.dataframe(annotation_df)
+                if len(genes) == 0:
+                    st.warning("⚠️ The selected column contains only empty or invalid values.")
+                else:
+                    with st.spinner("🔎 Annotating genes, please wait..."):
+                        try:
+                            result_df = annotate_genes(genes)
 
-                    csv = annotation_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Download annotations as CSV",
-                        data=csv,
-                        file_name='gene_annotations.csv',
-                        mime='text/csv'
-                    )
-                except Exception as e:
-                    st.error(f"❌ Error during annotation: {e}")
-            else:
-                st.warning("⚠️ No valid gene names found in the selected column.")
+                            if isinstance(result_df, pd.DataFrame):
+                                st.success("✅ Annotation completed!")
+                                st.dataframe(result_df)
+
+                                csv = result_df.to_csv(index=False).encode('utf-8')
+                                st.download_button("💾 Download Annotated CSV", csv, "annotated_genes.csv", "text/csv")
+
+                                st.markdown("---")
+                                with st.expander("🧠 Explanation / Notes"):
+                                    st.markdown("""
+                                    - **Missing annotations**: Genes that return no hits may not be included in some enrichment libraries.
+                                    - **Empty cells**: The app automatically skips blank entries.
+                                    - **Malformed genes**: Ensure gene names follow standard naming (e.g., TP53, BRCA1).
+                                    - **Drug info**: Based on known drug target databases from Enrichr.
+                                    """)
+                            else:
+                                st.error("❌ Error during annotation: Output is not a DataFrame.")
+
+                        except Exception as e:
+                            st.error(f"❌ Error during annotation: {e}")
 
     except Exception as e:
         st.error(f"❌ Error processing file: {e}")
 
-    with st.expander("ℹ️ What might cause errors?"):
-        st.markdown("""
-        - Ensure the selected column truly contains gene names (e.g. 'TP53', 'MYC').
-        - Remove empty or malformed entries (e.g. blank cells).
-        - Large files may take longer to process.
-        - Network/API issues may interrupt annotation temporarily.
-        """)
 else:
-    st.info("📄 Please upload a CSV file to begin.")
+    st.info("⬅️ Upload a gene list in CSV format using the sidebar.")
