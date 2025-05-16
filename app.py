@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from utils.annotator import annotate_genes
+from utils.annotator import annotate_genes, run_enrichment
 
 st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
 
@@ -17,7 +15,7 @@ if uploaded_file:
         df = pd.read_csv(uploaded_file)
         st.success("✅ File loaded successfully")
 
-        # Automatically detect gene columns (columns with name-like strings and no numbers)
+        # Detect columns with gene-like strings (exclude numeric columns)
         gene_columns = [col for col in df.columns if df[col].dtype == object and df[col].str.match(r'^[A-Za-z0-9-_]+$').sum() > 0]
 
         if not gene_columns:
@@ -35,12 +33,22 @@ if uploaded_file:
                         try:
                             result_df = annotate_genes(genes)
 
-                            if isinstance(result_df, pd.DataFrame):
+                            if isinstance(result_df, pd.DataFrame) and not result_df.empty:
                                 st.success("✅ Annotation completed!")
                                 st.dataframe(result_df)
 
                                 csv = result_df.to_csv(index=False).encode('utf-8')
                                 st.download_button("💾 Download Annotated CSV", csv, "annotated_genes.csv", "text/csv")
+
+                                # Optionally run enrichment and display
+                                if st.checkbox("Run enrichment analysis (Enrichr)"):
+                                    with st.spinner("🧬 Running enrichment analysis..."):
+                                        enrichment_df = run_enrichment(genes)
+                                        if not enrichment_df.empty:
+                                            st.subheader("Enrichment Results")
+                                            st.dataframe(enrichment_df)
+                                        else:
+                                            st.info("ℹ️ No enrichment results found.")
 
                                 st.markdown("---")
                                 with st.expander("🧠 Explanation / Notes"):
@@ -51,7 +59,7 @@ if uploaded_file:
                                     - **Drug info**: Based on known drug target databases from Enrichr.
                                     """)
                             else:
-                                st.error("❌ Error during annotation: Output is not a DataFrame.")
+                                st.error("❌ Error during annotation: Output is not a DataFrame or is empty.")
 
                         except Exception as e:
                             st.error(f"❌ Error during annotation: {e}")
