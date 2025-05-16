@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from annotator import annotate_genes
+from utils.annotator import annotate_genes
 
 st.title("Gene Drug Annotation App")
 
