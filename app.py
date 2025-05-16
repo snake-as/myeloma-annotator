@@ -1,71 +1,58 @@
-
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from utils.annotator import annotate_genes
+from annotator import annotate_genes
 
-st.set_page_config(page_title="Myeloma Gene Annotator", layout="wide")
+st.title("Gene Drug Annotation App")
 
-st.title("🧬 Drug Target Overview")
-st.markdown("This app annotates a list of genes with enrichment data and drug target information.")
+st.markdown("""
+Paste your gene list (one gene per line), then choose options to fetch drug interactions.
+""")
 
-with st.sidebar:
-    uploaded_file = st.file_uploader("📁 Upload a CSV file", type=["csv"])
+gene_input = st.text_area("Enter genes:", height=150)
+show_details = st.checkbox("Show detailed drug interaction info (types, sources)")
 
-if uploaded_file:
-    try:
-        df = pd.read_csv(uploaded_file)
-        st.success("✅ File loaded successfully")
+if st.button("Annotate Genes"):
+    genes = [g.strip() for g in gene_input.strip().split("\n") if g.strip()]
+    if not genes:
+        st.warning("Please enter at least one gene symbol.")
+    else:
+        with st.spinner("Fetching drug interactions..."):
+            results = annotate_genes(genes, detailed=show_details)
 
-        st.subheader("📄 Uploaded Data (Preview)")
-        st.dataframe(df.head())
-
-        # Automatically detect gene columns
-        gene_columns = [col for col in df.columns if df[col].dtype == object and df[col].str.match(r'^[A-Za-z0-9-_]+$').sum() > 0]
-
-        if not gene_columns:
-            st.error("⚠️ No suitable gene columns found in the file.")
-        else:
-            gene_column = st.sidebar.selectbox("🧬 Select the gene column to annotate", gene_columns)
-
-            if gene_column:
-                genes = df[gene_column].dropna().unique().tolist()
-
-                if len(genes) == 0:
-                    st.warning("⚠️ The selected column contains only empty or invalid values.")
+        # Build DataFrame for display
+        if show_details:
+            # Flatten detailed info into string summary per gene
+            rows = []
+            for res in results:
+                gene = res["Gene"]
+                drugs_info = res["Drugs"]
+                if drugs_info:
+                    for d in drugs_info:
+                        interaction_types = ", ".join(d.get("interaction_types", []))
+                        sources = ", ".join(d.get("sources", []))
+                        rows.append({
+                            "Gene": gene,
+                            "Drug": d.get("drug", ""),
+                            "Interaction Types": interaction_types,
+                            "Sources": sources,
+                        })
                 else:
-                    with st.spinner("🔎 Annotating genes, please wait..."):
-                        try:
-                            result_df = pd.DataFrame(annotate_genes(genes))
+                    rows.append({"Gene": gene, "Drug": "None", "Interaction Types": "", "Sources": ""})
 
-                            if not result_df.empty:
-                                st.success("✅ Annotation completed!")
+            df = pd.DataFrame(rows)
+        else:
+            # Simple list of drugs per gene
+            df = pd.DataFrame(
+                [(res["Gene"], ", ".join(res["Drugs"]) if res["Drugs"] else "None") for res in results],
+                columns=["Gene", "Drugs"]
+            )
 
-                                annotated_df = df.merge(result_df, how="left", left_on=gene_column, right_on="gene")
+        # Highlight genes with no drug annotations in yellow
+        def highlight_no_drugs(row):
+            if show_details:
+                return ["background-color: yellow" if row["Drug"] == "None" else "" for _ in row]
+            else:
+                return ["background-color: yellow" if row["Drugs"] == "None" else "" for _ in row]
 
-                                st.subheader("✅ Annotated Data Preview")
-                                st.markdown("New columns added: `drugs`, `error` (if any)")
-                                st.dataframe(annotated_df.head())
-
-                                csv = annotated_df.to_csv(index=False).encode('utf-8')
-                                st.download_button("💾 Download Annotated CSV", csv, "annotated_genes.csv", "text/csv")
-
-                                st.markdown("---")
-                                with st.expander("🧠 Explanation / Notes"):
-                                    st.markdown("""
-                                    - **Missing annotations**: Genes that return no hits may not be included in enrichment libraries.
-                                    - **Empty cells**: The app automatically skips blank entries.
-                                    - **Malformed genes**: Ensure gene names follow standard naming (e.g., TP53, BRCA1).
-                                    - **Drug info**: Based on known drug target databases (mocked here).
-                                    """)
-                            else:
-                                st.error("❌ Annotation returned an empty result.")
-
-                        except Exception as e:
-                            st.error(f"❌ Error during annotation: {e}")
-
-    except Exception as e:
-        st.error(f"❌ Error processing file: {e}")
-else:
-    st.info("⬅️ Upload a gene list in CSV format using the sidebar.")
+        st.markdown("### Annotated Genes Table")
+        st.dataframe(df.style.apply(highlight_no_drugs, axis=1))
